@@ -1,0 +1,508 @@
+---
+title: "Predicting Social Determinants of Health in Kansas and Western Missouri"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: 
+      version: 4
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+#Load Necessary Libraries, zipcodeR package was used to generate zipcode dataset
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(caret)
+library(flexdashboard)
+library(shinyWidgets)
+#library(zipcodeR)
+library(DT)
+script.dir <- dirname(sys.frame(1)$ofile)
+#Load Data
+load("./OnlyModels_7_26_22.RData")
+
+#Data Table Function To facilitate rendering
+DataTableRendererXTab <- function(tempDataTable){
+  datatable(tempDataTable,editable=FALSE, rownames=F, style='bootstrap',fillContainer = TRUE,
+  options = list(dom = 't', pageLength = -1,scrollY = T,columnDefs = list(list(className = 'dt-right', targets = 1:2)), initComplete = JS(
+        "function(settings, json) {",
+        "$(this.api().table().header()).css({'font-size': '85%'});",
+        "}")))%>%
+  DT::formatStyle(colnames(tempDataTable),fontSize = '85%')
+}
+```
+
+```{r}
+#Get User Input Data
+  UserModelData <- eventReactive(input$execute, {
+  ADIFromZip = as.numeric(ADI_DATA[ADI_DATA$ZIP == as.character(input$myZIP),]$ADI_STATERNK[1]) 
+  #Temp_Zipcode_Data = reverse_zipcode(as.character(input$myZIP))
+  Temp_Zipcode_Data = filter(ZipCodeRData, zipcode == as.character(input$myZIP))
+  BucketFromZip = case_when(
+   Temp_Zipcode_Data$county == 'Cass County' & Temp_Zipcode_Data$state == 'MO' ~ 'Cass,MO',
+   Temp_Zipcode_Data$county == 'Clay County' & Temp_Zipcode_Data$state == 'MO'  ~ 'Clay,MO',
+   Temp_Zipcode_Data$county == 'Jackson County' & Temp_Zipcode_Data$state == 'MO' ~ 'Jackson,MO',
+   Temp_Zipcode_Data$county == 'Johnson County' & Temp_Zipcode_Data$state == 'KS' ~ 'Johnson,KS',
+   Temp_Zipcode_Data$county == 'Leavenworth County' & Temp_Zipcode_Data$state == 'KS' ~ 'Leavenworth,KS',
+   Temp_Zipcode_Data$county == 'Wyandotte County' & Temp_Zipcode_Data$state == 'KS' ~ 'Wyandotte,KS',
+   Temp_Zipcode_Data$county == 'Platte County' & Temp_Zipcode_Data$state == 'MO' ~ 'Platte,MO',
+   TRUE ~ "Other")
+    #Format User Input Data to Model input
+    paste(Temp_Zipcode_Data$county,Temp_Zipcode_Data$state,sep = ",")
+    InputData = data.frame(Bucket = BucketFromZip,
+                           GENDER = input$myGender,
+                           RACE = input$myRace,
+                           ETHNICITY = input$myEthnicity,
+                           AGE = input$myAge,
+                           ADI_STATERNK = ADIFromZip
+                           )
+  print(InputData)
+  InputData$Bucket = as.factor(InputData$Bucket)
+  InputData$GENDER = as.factor(InputData$GENDER)
+  InputData$RACE = as.factor(InputData$RACE)
+  InputData$ETHNICITY = as.factor(InputData$ETHNICITY)
+  InputData$AGE = as.numeric(InputData$AGE)
+  InputData$ADI_STATERNK = as.numeric(InputData$ADI_STATERNK)
+#Get Model Predictions Based on user selection
+    switch(input$myModel,
+     "Logistic" = list(
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ001'))), InputData, type="response") > Model_ThresholdsQ001[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ002'))), InputData, type="response") > Model_ThresholdsQ002[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ003'))), InputData, type="response") > Model_ThresholdsQ003[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ004'))), InputData, type="response") > Model_ThresholdsQ004[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ005'))), InputData, type="response") > Model_ThresholdsQ005[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ006'))), InputData, type="response") > Model_ThresholdsQ006[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ007'))), InputData, type="response") > Model_ThresholdsQ007[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ008'))), InputData, type="response") > Model_ThresholdsQ008[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ009'))), InputData, type="response") > Model_ThresholdsQ009[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ010'))), InputData, type="response") > Model_ThresholdsQ010[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ011'))), InputData, type="response") > Model_ThresholdsQ011[[1]]$threshold),
+       (predict(eval(as.symbol(paste0("Logistic",'_ModelQ012'))), InputData, type="response") > Model_ThresholdsQ012[[1]]$threshold)),
+                    
+     "Bayesian-GLM" = list(
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ001'))), InputData, type="response") > Model_ThresholdsQ001[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ002'))), InputData, type="response") > Model_ThresholdsQ002[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ003'))), InputData, type="response") > Model_ThresholdsQ003[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ004'))), InputData, type="response") > Model_ThresholdsQ004[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ005'))), InputData, type="response") > Model_ThresholdsQ005[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ006'))), InputData, type="response") > Model_ThresholdsQ006[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ007'))), InputData, type="response") > Model_ThresholdsQ007[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ008'))), InputData, type="response") > Model_ThresholdsQ008[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ009'))), InputData, type="response") > Model_ThresholdsQ009[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ010'))), InputData, type="response") > Model_ThresholdsQ010[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ011'))), InputData, type="response") > Model_ThresholdsQ011[[2]]$threshold),
+       (predict(eval(as.symbol(paste0("BGLM",'_ModelQ012'))), InputData, type="response") > Model_ThresholdsQ012[[2]]$threshold)),
+     
+     
+     "Extreme Gradiant Boost" = list(
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ001'))), InputData, type="prob")$Yes > Model_ThresholdsQ001[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ002'))), InputData, type="prob")$Yes > Model_ThresholdsQ002[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ003'))), InputData, type="prob")$Yes > Model_ThresholdsQ003[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ004'))), InputData, type="prob")$Yes > Model_ThresholdsQ004[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ005'))), InputData, type="prob")$Yes > Model_ThresholdsQ005[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ006'))), InputData, type="prob")$Yes > Model_ThresholdsQ006[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ007'))), InputData, type="prob")$Yes > Model_ThresholdsQ007[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ008'))), InputData, type="prob")$Yes > Model_ThresholdsQ008[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ009'))), InputData, type="prob")$Yes > Model_ThresholdsQ009[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ010'))), InputData, type="prob")$Yes > Model_ThresholdsQ010[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ011'))), InputData, type="prob")$Yes > Model_ThresholdsQ011[[3]]$threshold),
+       (predict(eval(as.symbol(paste0("XGB",'_ModelQ012'))), InputData, type="prob")$Yes > Model_ThresholdsQ012[[3]]$threshold)),
+     
+     "Gradiant Boost" = list(
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ001'))), InputData, type="prob")$Yes > Model_ThresholdsQ001[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ002'))), InputData, type="prob")$Yes > Model_ThresholdsQ002[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ003'))), InputData, type="prob")$Yes > Model_ThresholdsQ003[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ004'))), InputData, type="prob")$Yes > Model_ThresholdsQ004[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ005'))), InputData, type="prob")$Yes > Model_ThresholdsQ005[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ006'))), InputData, type="prob")$Yes > Model_ThresholdsQ006[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ007'))), InputData, type="prob")$Yes > Model_ThresholdsQ007[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ008'))), InputData, type="prob")$Yes > Model_ThresholdsQ008[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ009'))), InputData, type="prob")$Yes > Model_ThresholdsQ009[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ010'))), InputData, type="prob")$Yes > Model_ThresholdsQ010[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ011'))), InputData, type="prob")$Yes > Model_ThresholdsQ011[[4]]$threshold),
+       (predict(eval(as.symbol(paste0("GBM",'_ModelQ012'))), InputData, type="prob")$Yes > Model_ThresholdsQ012[[4]]$threshold)),
+     
+     "Neural Net" = list(
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ001'))), InputData, type="prob")$Yes > Model_ThresholdsQ001[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ002'))), InputData, type="prob")$Yes > Model_ThresholdsQ002[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ003'))), InputData, type="prob")$Yes > Model_ThresholdsQ003[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ004'))), InputData, type="prob")$Yes > Model_ThresholdsQ004[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ005'))), InputData, type="prob")$Yes > Model_ThresholdsQ005[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ006'))), InputData, type="prob")$Yes > Model_ThresholdsQ006[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ007'))), InputData, type="prob")$Yes > Model_ThresholdsQ007[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ008'))), InputData, type="prob")$Yes > Model_ThresholdsQ008[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ009'))), InputData, type="prob")$Yes > Model_ThresholdsQ009[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ010'))), InputData, type="prob")$Yes > Model_ThresholdsQ010[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ011'))), InputData, type="prob")$Yes > Model_ThresholdsQ011[[5]]$threshold),
+       (predict(eval(as.symbol(paste0("NeuralNet",'_ModelQ012'))), InputData, type="prob")$Yes > Model_ThresholdsQ012[[5]]$threshold)),
+     
+     "Random Forest" = list(
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ001'))), InputData, type="prob")$Yes > Model_ThresholdsQ001[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ002'))), InputData, type="prob")$Yes > Model_ThresholdsQ002[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ003'))), InputData, type="prob")$Yes > Model_ThresholdsQ003[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ004'))), InputData, type="prob")$Yes > Model_ThresholdsQ004[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ005'))), InputData, type="prob")$Yes > Model_ThresholdsQ005[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ006'))), InputData, type="prob")$Yes > Model_ThresholdsQ006[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ007'))), InputData, type="prob")$Yes > Model_ThresholdsQ007[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ008'))), InputData, type="prob")$Yes > Model_ThresholdsQ008[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ009'))), InputData, type="prob")$Yes > Model_ThresholdsQ009[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ010'))), InputData, type="prob")$Yes > Model_ThresholdsQ010[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ011'))), InputData, type="prob")$Yes > Model_ThresholdsQ011[[6]]$threshold),
+       (predict(eval(as.symbol(paste0("RandomForest",'_ModelQ012'))), InputData, type="prob")$Yes > Model_ThresholdsQ012[[6]]$threshold)),
+     
+     print("Invalid Model Selected") # Default Statement
+     )
+}, ignoreInit = FALSE, ignoreNULL = FALSE)
+```
+
+Model Predictions 
+===================================== 
+
+Sidebar {.sidebar data-width=380}
+-----------------------------------------------------------------------
+```{r}
+#Display Picker Elements
+pickerInput(inputId = "myGender", 
+  label="Gender",
+  choices = GenderOptions, 
+  multiple = FALSE)
+pickerInput(inputId = "myRace", 
+  label="Race",
+  choices = RaceOptions, 
+  multiple = FALSE)
+pickerInput(inputId = "myEthnicity", 
+  label="Ethnicity",
+  choices = EthnicityOptions, 
+  multiple = FALSE)
+numericInput(inputId ="myAge", label = "Age",
+            min = 0, value = 35, step = 1)
+numericInput(inputId ="myZIP", label = "ZIPCode",
+            value = 66062, step = 1)
+actionButton("execute", "Apply")
+pickerInput(inputId = "myModel", 
+  label="Model",
+  choices = ModelOptions, 
+  multiple = FALSE)
+```
+
+<!-- Display User Results -->
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### Question 1: In the last 12 months, did you ever eat less than you should because there wasn't enough?
+  
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[1], "Yes", "No"),
+           color = ifelse(UserModelData()[1], "warning","primary"),
+           icon = "fa-cutlery")
+})
+```
+
+### Question 2: In the last 12 months, has your utility company shut  off your service for not paying your bill?
+ 
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[2], "Yes", "No"),
+           color = ifelse(UserModelData()[2], "warning","primary"),
+           icon = "fa-plug")
+})
+```
+
+### Question 3: Are you worried that in the next 2 months, you may not have stable housing?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[3], "Yes", "No"),
+           color = ifelse(UserModelData()[3], "warning","primary"),
+           icon = "fa-bed")
+})
+```
+
+### Question 4: Are you afraid you might be hurt in your home by someone you know?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[4], "Yes", "No"),
+           color = ifelse(UserModelData()[4], "warning","primary"),
+           icon = "fa-home")
+})
+```
+
+### Question 5: Are you afraid you might be hurt in your apartment building or neighborhood?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[5], "Yes", "No"),
+           color = ifelse(UserModelData()[5], "warning","primary"),
+           icon = "fa-building")
+})
+```
+
+### Question 6: Do problems getting childcare make it difficult for you to work or study?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[6], "Yes", "No"),
+           color = ifelse(UserModelData()[6], "warning","primary"),
+           icon = "fa-child")
+})
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### Question 7: In the last 12 months, have you needed to see a doctor, but could not because of cost?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[7], "Yes", "No"),
+           color = ifelse(UserModelData()[7], "warning","primary"),
+           icon = "fa-user-md")
+})
+```
+
+### Question 8: In the last 12 months, did you skip medications to save money?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[8], "Yes", "No"),
+           color = ifelse(UserModelData()[8], "warning","primary"),
+           icon = "fa-plus-square")
+})
+```
+
+### Question 9: In the last 12 months, have you ever had to go without health care?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[9], "Yes", "No"),
+           color = ifelse(UserModelData()[9], "warning","primary"),
+           icon = "fa-stethoscope")
+})
+```
+
+### Question 10: Do you have problems understanding what is told to you about your medical conditions?
+
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[10], "Yes", "No"),
+           color = ifelse(UserModelData()[10], "warning","primary"),
+           icon = "fa-universal-access")
+})
+```
+
+### Question 11: Do you often feel that you lack companionship?
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[11], "Yes", "No"),
+           color = ifelse(UserModelData()[11], "warning","primary"),
+           icon = "fa-paw")
+})
+```
+
+### Question 12: If you answered YES to any questions above, would you like to discuss help? 
+```{r}
+renderValueBox({
+  req(UserModelData())
+  valueBox(value = ifelse(UserModelData()[12], "Yes", "No"),
+           color = ifelse(UserModelData()[12], "warning","primary"),
+           icon = "fa-info-circle")
+})
+```
+
+<!-- Display AUCs for models -->
+
+AUC
+===================================== 
+
+Column {.tabset}
+-------------------------------------
+
+### Q1
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ001)})
+```
+
+### Q2
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ002)})
+```
+
+### Q3
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ003)})
+```
+
+### Q4
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ004)})
+```
+
+### Q5
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ005)})
+```
+
+### Q6
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ006)})
+```
+
+### Q7
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ007)})
+```
+
+### Q8
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ008)})
+```
+
+### Q9
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ009)})
+```
+
+### Q10
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ010)})
+```
+
+### Q11
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ011)})
+```
+
+### Q12
+
+```{r}
+DT::renderDT({DataTableRendererXTab(ROC_TableQ012)})
+```
+
+<!-- Display ROCs for Models -->
+
+ROC Curves
+===================================== 
+
+Column {.tabset}
+-------------------------------------
+
+### Q1
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q001)
+})
+```
+
+### Q2
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q002)
+})
+```
+
+### Q3
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q003)
+})
+```
+
+### Q4
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q004)
+})
+```
+
+### Q5
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q005)
+})
+```
+
+### Q6
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q006)
+})
+```
+
+### Q7
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q007)
+})
+```
+
+### Q8
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q008)
+})
+```
+
+### Q9
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q009)
+})
+```
+
+### Q10
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q010)
+})
+```
+
+### Q11
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q011)
+})
+```
+
+### Q12
+
+```{r}
+renderPlotly({
+ggplotly(Graph_Q012)
+})
+```
